@@ -7,5 +7,6 @@ Can also run in Discord DMs via command `/getstats`, which contains an optional 
 Need to set some environment variables (can use .env file):
 - `DISCORD_API`: Discord token (if running bot.py)
 - `MATCH_LOG`: File location of TE4 match log
+- `MOD_DIR`: Directory for TE4 mods (should also have XKT mod installed in game)
 - `PLAYER_ONE`: ", " separated list of all names for player one
 - `PLAYER_TWO`: ", " separated list of all names for player two

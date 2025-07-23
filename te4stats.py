@@ -8,15 +8,53 @@ import cv2
 scriptDir = os.path.dirname(os.path.abspath(__file__))
 
 
-surfaces = {"hard": {"Miami", "Antwerp ATP 250", "US Open Arthur Ashe", "Blue-Green Cement", "Acapulco ATP 500", "AO Rod Laver Night", "AO Rod Laver Day", "Indian Wells ATP 1000", "Cincinnati ATP 1000", "Montreal ATP 1000"}, \
-            "clay": {"RG Philippe Chatrier Day", "RG Philippe Chatrier Night", "Madrid Manolo Santana", "Roma ATP 1000", "Rio ATP 500", "Buenos Aires ATP 250", "Houston ATP 250", "Monte Carlo ATP 1000", "Bucharest ATP 250", "Barcelona ATP 500", "Srpska ATP 250", "Cordoba ATP 250", "Stuttgart WTA 500", "Hamburg ATP 500", "Roma WTA 1000", "Gstaad ATP 250"}, \
-            "grass": {"s'Hertogenbosh ATP 250", "Stuttgart ATP 250", "Wimbledon Center Court Day"}}
+surfaces = {}
 def findSurface(court):
     global surfaces
-    for surface, courts in surfaces.items():
-        if court in courts:
-            return surface
+    if court in surfaces:
+        return surfaces[court]
     return None
+
+
+def loadSurfaces():
+    global surfaces
+    modDir = os.getenv("MOD_DIR")
+    found = False
+    for d in os.listdir(modDir):
+        xktDir = f"{modDir}/{d}"
+        if "XKT" in os.listdir(xktDir):
+            found = True
+            break
+    if not found:
+        raise Exception("Could not find XKT directory")
+
+    surfacesDir = f"{xktDir}/XKT/Courts/Surfaces"
+    for courtDir in os.listdir(surfacesDir):
+        foundSurface = False
+        foundName = False
+        with open(f"{surfacesDir}/{courtDir}/Surface.ini") as surfaceFile:
+            for line in surfaceFile:
+                if foundSurface and foundName:
+                    break
+
+                line = line.strip()
+                if not foundSurface and line.startswith("Type"):
+                    foundSurface = True
+                    surface = line[line.index("// ") + 3:]
+                elif not foundName and line.startswith("NameDirect"):
+                    foundName = True
+                    court = line[line.index("=") + 1:].strip()
+
+        if not foundSurface:
+            raise Exception(f"Could not find surface for {courtDir}")
+        if not foundName:
+            raise Exception(f"Could not find name for {courtDir}")
+        
+        assert surface in ["Hard", "Synthetic", "Clay", "Grass"]
+        if surface == "Synthetic":
+            surface = "Hard"
+        surfaces[court] = surface
+
 
 class Player:
     def __init__(self, name):
@@ -199,6 +237,9 @@ def processStats(numMatches=1):
             good = match.winner.name in p2.name and match.loser.name in p1.name
         if not good:
             continue
+        # don't include retirements
+        if match.numSets == -1:
+            continue
         
         if match.winner.name in p1.name:
             if playerStreak == 1:
@@ -230,7 +271,7 @@ def processStats(numMatches=1):
     output.append(f"BO3 H2H: {p1.numBOSWins(3)}-{p2.numBOSWins(3)}")
     output.append(f"BO5 H2H: {p1.numBOSWins(5)}-{p2.numBOSWins(5)}")
     
-    # surfaces = ["hard", "clay", "grass"]
+    # surfaces = ["Hard", "Clay", "Grass"]
     if lastSurface:
         for surface in [lastSurface]:
             output.append("")
@@ -243,7 +284,9 @@ def processStats(numMatches=1):
     
     return "\n".join(output), lastMatchStats
 
+load_dotenv() # TODO: Maybe avoid calling multiple times
+loadSurfaces()
+
 if __name__ == "__main__":
-    load_dotenv()
     stats, lastMatchStats = processStats()
     print(stats)

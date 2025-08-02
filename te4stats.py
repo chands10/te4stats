@@ -200,6 +200,13 @@ def getLastMatchStats(soup, numMatches):
     return images
     
 
+def diff(h1, h2):
+    d = h1 - h2
+    if d > 0:
+        return f"+{d}"
+    return str(d)
+
+
 def processStats(numMatches=1):
     with open(os.getenv("MATCH_LOG")) as fp:
         soup = BeautifulSoup(fp, 'html.parser')
@@ -266,21 +273,27 @@ def processStats(numMatches=1):
     
     output = []
     output.append(f"{p1.name} vs {p2.name}")
-    output.append(f"Total H2H: {len(p1.wins)}-{len(p2.wins)}")
-    output.append(f"BO1 H2H: {p1.numBOSWins(1)}-{p2.numBOSWins(1)}")
-    output.append(f"BO3 H2H: {p1.numBOSWins(3)}-{p2.numBOSWins(3)}")
-    output.append(f"BO5 H2H: {p1.numBOSWins(5)}-{p2.numBOSWins(5)}")
+    h1, h2 = len(p1.wins), len(p2.wins)
+    output.append(f"Total H2H: {h1}-{h2} ({diff(h1, h2)})")
+    h1, h2 = p1.numBOSWins(1), p2.numBOSWins(1)
+    output.append(f"BO1 H2H: {h1}-{h2} ({diff(h1, h2)})")
+    h1, h2 = p1.numBOSWins(3), p2.numBOSWins(3)
+    output.append(f"BO3 H2H: {h1}-{h2} ({diff(h1, h2)})")
+    h1, h2 = p1.numBOSWins(5), p2.numBOSWins(5)
+    output.append(f"BO5 H2H: {h1}-{h2} ({diff(h1, h2)})")
     
     # surfaces = ["Hard", "Clay", "Grass"]
     if lastSurface:
         for surface in [lastSurface]:
             output.append("")
-            output.append(f"{surface.capitalize()} H2H: {p1.numSurfaceWins(surface)}-{p2.numSurfaceWins(surface)}")
+            h1, h2 = p1.numSurfaceWins(surface), p2.numSurfaceWins(surface)
+            output.append(f"{surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
             for s in [1,3,5]:
-                output.append(f"BO{s} {surface.capitalize()} H2H: {p1.numBOSSurfaceWins(s, surface)}-{p2.numBOSSurfaceWins(s, surface)}")
+                h1, h2 = p1.numBOSSurfaceWins(s, surface), p2.numBOSSurfaceWins(s, surface)
+                output.append(f"BO{s} {surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
 
     output.append("")
-    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {streak} {"win 👑" if streak == 1 else "wins"}")
+    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {streak} {"win 👑" if streak == 1 else "wins 👑"}")
     
     return "\n".join(output), lastMatchStats
 

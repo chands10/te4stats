@@ -208,31 +208,52 @@ def diff(h1, h2):
 
 
 def processStats(numMatches=1):
-    with open(os.getenv("MATCH_LOG")) as fp:
-        soup = BeautifulSoup(fp, 'html.parser')
-    
-    first = True
+    num = 1
+    # TODO: change matchLog to be directory. Grab all html files from there
+    matchLog = os.getenv("MATCH_LOG")
+    assert matchLog.endswith("001.html")
+    matchLog = matchLog.split("001.html")[0]
+    done = False
     matches = []
     allUnknownSurfaces = set()
-    for htmlMatch in soup('p'):
-        if first:
-            first = False
-            assert htmlMatch.input['type'] == "button"
-            continue
+    while not done:
+        with open(f"{matchLog}{num:03}.html") as fp:
+            soup = BeautifulSoup(fp, 'html.parser')
         
-        assert htmlMatch.input['type'] == "checkbox"
-        match = parseMatch(htmlMatch)
-        matches.append(match)
-        if match.surface is None:
-            allUnknownSurfaces.add(match.court)
+        first = True
+        button = False
+        done = True
+        for htmlMatch in soup('p'):
+            if first:
+                first = False
+                assert htmlMatch.input['type'] == "button"
+                button = True
+                continue
+            if htmlMatch.text == "":
+                button = False
+                continue
+            if htmlMatch.find('a') is not None:
+                if not button: # this is a next. There is another html page
+                    done = False
+                    num += 1
+                button = False
+                continue
+
+            button = False
+            assert htmlMatch.input['type'] == "checkbox"
+            match = parseMatch(htmlMatch)
+            matches.append(match)
+            if match.surface is None:
+                allUnknownSurfaces.add(match.court)
 
     if len(allUnknownSurfaces) > 0:
         print(f"Unknown surface for courts {", ".join(allUnknownSurfaces)}")
 
+    # TODO: Account for needing multiple soup files to get last numMatches matches
     lastMatchStats = getLastMatchStats(soup, numMatches)
     
-    p1 = H2HPlayer(os.getenv("PLAYER_ONE").split(", "))
-    p2 = H2HPlayer(os.getenv("PLAYER_TWO").split(", "))
+    p1 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_ONE").split(",")])
+    p2 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_TWO").split(",")])
     
     lastSurface = None
     playerStreak = None

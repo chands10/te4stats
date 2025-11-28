@@ -208,16 +208,15 @@ def diff(h1, h2):
 
 
 def processStats(numMatches=1):
-    num = 1
-    # TODO: change matchLog to be directory. Grab all html files from there
-    matchLog = os.getenv("MATCH_LOG")
-    assert matchLog.endswith("001.html")
-    matchLog = matchLog.split("001.html")[0]
+    matchLogDir = os.getenv("MATCH_LOG_DIR")
+    # sorting should read match logs in order since numbers are all 3 digits/zero padded
+    matchLogs = sorted(f for f in os.listdir(matchLogDir) if f.startswith("MatchLog - TrainingClub"))
     done = False
     matches = []
     allUnknownSurfaces = set()
-    while not done:
-        with open(f"{matchLog}{num:03}.html") as fp:
+    for matchLog in matchLogs:
+        assert not done
+        with open(os.path.join(matchLogDir, matchLog)) as fp:
             soup = BeautifulSoup(fp, 'html.parser')
         
         first = True
@@ -233,9 +232,8 @@ def processStats(numMatches=1):
                 button = False
                 continue
             if htmlMatch.find('a') is not None:
-                if not button: # this is a next. There is another html page
+                if not button: # this is a next. There is another html page. This should be the end of this file
                     done = False
-                    num += 1
                 button = False
                 continue
 

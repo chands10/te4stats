@@ -74,6 +74,7 @@ class H2HPlayer:
         self.wins = []
         self.numWins = []
         self.longestStreak = 0
+        self.longestStreakSets = 0
     
     
     def __str__(self):
@@ -95,7 +96,7 @@ class Match:
         self.winner = winner
         self.loser = loser
         self.score = score
-        self.numSets = self.findNumSets()
+        self.numSets, self.setWinners = self.parseSets()
         self.court = court
         self.surface = findSurface(court)
         self.time = time
@@ -107,28 +108,42 @@ class Match:
     def __str__(self):
         return f"{str(self.winner)=}, {str(self.loser)=}, {str(vars(self))}"
     
-    def findNumSets(self):
+
+    # return True if if first score, else False. -1 on error
+    def _findSetWinner(self, score):
+        if score == "ret.":
+            return -1
+        games = score.split("/")
+        tb0 = games[0].find('(')
+        if tb0 != -1:
+            games[0] = games[0][:tb0]
+        tb1 = games[1].find('(')
+        if tb1 != -1:
+            games[1] = games[1][:tb1]
+
+        games[0], games[1] = int(games[0]), int(games[1])
+        if games[0] > games[1]:
+            return True
+        if games[0] < games[1]:
+            return False
+
+        return -1
+
+
+    def parseSets(self):
         numSetsWon = 0
+        setWinners = []
         for score in self.score:
-            if score == "ret.":
-                return -1
-            games = score.split("/")
-            tb0 = games[0].find('(')
-            if tb0 != -1:
-                games[0] = games[0][:tb0]
-            tb1 = games[1].find('(')
-            if tb1 != -1:
-                games[1] = games[1][:tb1]
-            
-            games[0], games[1] = int(games[0]), int(games[1])
-            if games[0] > games[1]:
+            winner = self._findSetWinner(score)
+            setWinners.append(winner)
+            if winner == -1:
+                return -1, setWinners
+            if winner:
                 numSetsWon += 1
-            if games[0] == games[1]:
-                return -1
         
         numSets = numSetsWon * 2 - 1
         assert numSets in (1, 3, 5)
-        return numSets
+        return numSets, setWinners
 
 
 def findDivider(text, s, start):
@@ -241,7 +256,29 @@ def diff(h1, h2):
 
 
 def makePlural(s, num):
-    return s if num == 1 else f"{s}s"
+    return f"{num} {s}{"" if num == 1 else "s"}"
+
+
+def outputLongestStreak(p, playerNumber, playerStreak, biggestStreak, playerStreakSets, biggestStreakSets):
+    return f"{p.name[0]}'s Longest Streak: {makePlural("win", p.longestStreak)}; {makePlural("set", p.longestStreakSets)}" + \
+    (" 🚀" if (playerStreak == playerNumber and biggestStreak) or (playerStreakSets == playerNumber and biggestStreakSets) else "")
+
+
+def updateStreakVariables(playerNumber, p, playerStreak, streak, biggestStreak, sets=False):
+    if playerStreak == playerNumber:
+        streak += 1
+    else:
+        playerStreak = playerNumber
+        streak = 1
+        biggestStreak = False
+    if not sets and streak > p.longestStreak:
+        p.longestStreak = streak
+        biggestStreak = True
+    elif sets and streak > p.longestStreakSets:
+        p.longestStreakSets = streak
+        biggestStreak = True
+
+    return playerStreak, streak, biggestStreak
 
 
 def processStats(numMatches=1):
@@ -290,10 +327,15 @@ def processStats(numMatches=1):
     p1 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_ONE").split(",")])
     p2 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_TWO").split(",")])
     
-    lastSurface = None
     playerStreak = None
     streak = 0
     biggestStreak = False
+
+    playerStreakSets = None
+    streakSets = 0
+    biggestStreakSets = False
+
+    lastSurface = None
     unknownSurfaces = set()
     dates = []
     for match in matches:
@@ -310,31 +352,23 @@ def processStats(numMatches=1):
             continue
         
         if match.winner.name in p1.name:
-            if playerStreak == 1:
-                streak += 1
-            else:
-                playerStreak = 1
-                streak = 1
-                biggestStreak = False
+            setWinners = [1 if s else 2 for s in match.setWinners]
+            playerStreak, streak, biggestStreak = updateStreakVariables(1, p1, playerStreak, streak, biggestStreak)
             p1.wins.append(match)
-            if streak > p1.longestStreak:
-                p1.longestStreak = streak
-                biggestStreak = True
         else:
-            if playerStreak == 2:
-                streak += 1
-            else:
-                playerStreak = 2
-                streak = 1
-                biggestStreak = False
+            setWinners = [2 if s else 1 for s in match.setWinners]
+            playerStreak, streak, biggestStreak = updateStreakVariables(2, p2, playerStreak, streak, biggestStreak)
             p2.wins.append(match)
-            if streak > p2.longestStreak:
-                p2.longestStreak = streak
-                biggestStreak = True
 
         p1.numWins.append(len(p1.wins))
         p2.numWins.append(len(p2.wins))
         dates.append(match.datetime)
+
+        for s in setWinners:
+            p = p1 if s == 1 else p2
+            playerStreakSets, streakSets, biggestStreakSets = updateStreakVariables(s, p, playerStreakSets, streakSets, biggestStreakSets, True)
+
+        assert playerStreak == playerStreakSets
 
         lastSurface = match.surface
         if match.surface is None:
@@ -371,11 +405,11 @@ def processStats(numMatches=1):
                 output.append(f"BO{s} {surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
 
     output.append("")
-    output.append(f"{p1.name[0]}'s Longest Streak: {p1.longestStreak} {makePlural("win", p1.longestStreak)}{" 🚀" if playerStreak == 1 and biggestStreak else ""}")
-    output.append(f"{p2.name[0]}'s Longest Streak: {p2.longestStreak} {makePlural("win", p1.longestStreak)}{" 🚀" if playerStreak == 2 and biggestStreak else ""}")
+    output.append(outputLongestStreak(p1, 1, playerStreak, biggestStreak, playerStreakSets, biggestStreakSets))
+    output.append(outputLongestStreak(p2, 2, playerStreak, biggestStreak, playerStreakSets, biggestStreakSets))
 
     output.append("")
-    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {streak} {makePlural("win", streak)} 👑")
+    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {makePlural("win", streak)}; {makePlural("set", streakSets)} 👑")
     
     return "\n".join(output), lastMatchStats, matchPlot
 

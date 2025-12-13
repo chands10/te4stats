@@ -6,6 +6,7 @@ import cv2
 
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
+TRACKBO1 = False
 
 
 surfaces = {}
@@ -266,6 +267,9 @@ def processStats(numMatches=1):
         # don't include retirements
         if match.numSets == -1:
             continue
+
+        if match.numSets == 1 and not TRACKBO1:
+            continue
         
         if match.winner.name in p1.name:
             if playerStreak == 1:
@@ -294,8 +298,9 @@ def processStats(numMatches=1):
     output.append(f"{p1.name} vs {p2.name}")
     h1, h2 = len(p1.wins), len(p2.wins)
     output.append(f"Total H2H: {h1}-{h2} ({diff(h1, h2)})")
-    h1, h2 = p1.numBOSWins(1), p2.numBOSWins(1)
-    output.append(f"BO1 H2H: {h1}-{h2} ({diff(h1, h2)})")
+    if TRACKBO1:
+        h1, h2 = p1.numBOSWins(1), p2.numBOSWins(1)
+        output.append(f"BO1 H2H: {h1}-{h2} ({diff(h1, h2)})")
     h1, h2 = p1.numBOSWins(3), p2.numBOSWins(3)
     output.append(f"BO3 H2H: {h1}-{h2} ({diff(h1, h2)})")
     h1, h2 = p1.numBOSWins(5), p2.numBOSWins(5)
@@ -303,11 +308,14 @@ def processStats(numMatches=1):
     
     # surfaces = ["Hard", "Clay", "Grass"]
     if lastSurface:
+        sets = [1,3,5]
+        if not TRACKBO1:
+            sets.remove(1)
         for surface in [lastSurface]:
             output.append("")
             h1, h2 = p1.numSurfaceWins(surface), p2.numSurfaceWins(surface)
             output.append(f"{surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
-            for s in [1,3,5]:
+            for s in sets:
                 h1, h2 = p1.numBOSSurfaceWins(s, surface), p2.numBOSSurfaceWins(s, surface)
                 output.append(f"BO{s} {surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
 

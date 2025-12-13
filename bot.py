@@ -18,19 +18,25 @@ async def on_ready():
     print(f'We have logged in as {bot.user}')
 
 
+def convertImage(img, name):
+    imgEncode = cv2.imencode('.jpg', img)[1]
+    byteEncode = np.array(imgEncode).tobytes()
+    byteImage = BytesIO(byteEncode)
+    f = discord.File(byteImage, filename=name)
+    return f
+
+
 @discord.app_commands.allowed_installs(guilds=True, users=True)
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @bot.tree.command(name="getstats", description="get te4 stats (arg specifies number of matches to attach as images)")
 async def getstats(interaction: discord.Interaction, arg: int=1):
     await interaction.response.defer()
-    stats, lastMatchStats = processStats(arg)
+    stats, lastMatchStats, matchPlot = processStats(arg)
     files=[]
     for i, img in enumerate(lastMatchStats, 1):
-        imgEncode = cv2.imencode('.jpg', img)[1]
-        byteEncode = np.array(imgEncode).tobytes()
-        byteImage = BytesIO(byteEncode)
-        f = discord.File(byteImage, filename=f'lastMatchStats{i}.jpg')
-        files.append(f)
+        files.append(convertImage(img, f'lastMatchStats{i}.jpg'))
+    files.append(convertImage(matchPlot, "matchPlot.jpg"))
+
     await interaction.followup.send(content=stats, files=files)
 
 

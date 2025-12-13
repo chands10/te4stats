@@ -3,6 +3,9 @@ from html2image import Html2Image
 import os
 from dotenv import load_dotenv
 import cv2
+import numpy as np
+from datetime import datetime
+from matplotlib import pyplot as plt
 
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
@@ -69,6 +72,8 @@ class H2HPlayer:
     def __init__(self, name):
         self.name = name
         self.wins = []
+        self.numWins = []
+        self.longestStreak = 0
     
     
     def __str__(self):
@@ -86,7 +91,7 @@ class H2HPlayer:
 
 
 class Match:
-    def __init__(self, winner, loser, score, court, time, fakeTime, datetime):
+    def __init__(self, winner, loser, score, court, time, fakeTime, datetimeString):
         self.winner = winner
         self.loser = loser
         self.score = score
@@ -95,7 +100,8 @@ class Match:
         self.surface = findSurface(court)
         self.time = time
         self.fakeTime = fakeTime
-        self.datetime = datetime
+        self.datetimeString = datetimeString
+        self.datetime = datetime.strptime(self.datetimeString, "%Y-%m-%d %H:%M")
 
         
     def __str__(self):
@@ -147,13 +153,13 @@ def parseTitle(text):
     d6, d6End = findDivider(text, ") - ", d5End)
     fakeTime = text[d5End:d6]
     d7, d7End = findDivider(text, " [Online]", d6End)
-    datetime = text[d6End:d7]
+    datetimeString = text[d6End:d7]
     
     if text.endswith("[Online]"):
         winner = winner[:winner.index(" (ELO: ")]
         loser = loser[:loser.index(" (ELO: ")]
 
-    return winner, loser, score, court, time, fakeTime, datetime
+    return winner, loser, score, court, time, fakeTime, datetimeString
 
 
 # TODO
@@ -163,7 +169,7 @@ def parseStats(stats, winner, loser):
 
 def parseMatch(htmlMatch):
     text = htmlMatch.text
-    winner, loser, score, court, time, fakeTime, datetime = parseTitle(text)
+    winner, loser, score, court, time, fakeTime, datetimeString = parseTitle(text)
 
     winner = Player(winner)
     loser = Player(loser)
@@ -172,7 +178,7 @@ def parseMatch(htmlMatch):
     assert stats.name == "table"
     parseStats(stats, winner, loser)
     
-    match = Match(winner, loser, score, court, time, fakeTime, datetime)
+    match = Match(winner, loser, score, court, time, fakeTime, datetimeString)
     return match
 
 
@@ -199,6 +205,32 @@ def getLastMatchStats(soup, numMatches):
 
     os.rmdir(tmpDir)
     return images
+
+
+def getMatchPlot(p1, p2, dates):
+    fig = plt.figure(figsize=(15, 7))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.set_title(f"{p1.name} vs {p2.name}")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of Wins")
+    ax.yaxis.tick_right()
+    ax.yaxis.set_label_position("right")
+    ax.step(dates, p1.numWins, label=str(p1.name))
+    ax.step(dates, p2.numWins, label=str(p2.name))
+    ax.minorticks_on()
+    ax.grid(which="major", axis='y', linestyle='-', linewidth="0.5", color="red")
+    ax.grid(which="minor", axis='y', linestyle=':', linewidth="0.5", color="black")
+    ax.legend()
+    fig.canvas.draw()
+    rgbaImage = np.array(fig.canvas.buffer_rgba())
+    image = cv2.cvtColor(rgbaImage, cv2.COLOR_RGBA2BGR)
+    plt.close(fig)
+    if __name__ == "__main__":
+        cv2.imshow("Image", image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    return image
     
 
 def diff(h1, h2):
@@ -206,6 +238,10 @@ def diff(h1, h2):
     if d > 0:
         return f"+{d}"
     return str(d)
+
+
+def makePlural(s, num):
+    return s if num == 1 else f"{s}s"
 
 
 def processStats(numMatches=1):
@@ -257,7 +293,9 @@ def processStats(numMatches=1):
     lastSurface = None
     playerStreak = None
     streak = 0
+    biggestStreak = False
     unknownSurfaces = set()
+    dates = []
     for match in matches:
         good = match.winner.name in p1.name and match.loser.name in p2.name
         if not good:
@@ -277,22 +315,35 @@ def processStats(numMatches=1):
             else:
                 playerStreak = 1
                 streak = 1
+                biggestStreak = False
             p1.wins.append(match)
+            if streak > p1.longestStreak:
+                p1.longestStreak = streak
+                biggestStreak = True
         else:
             if playerStreak == 2:
                 streak += 1
             else:
                 playerStreak = 2
                 streak = 1
+                biggestStreak = False
             p2.wins.append(match)
+            if streak > p2.longestStreak:
+                p2.longestStreak = streak
+                biggestStreak = True
+
+        p1.numWins.append(len(p1.wins))
+        p2.numWins.append(len(p2.wins))
+        dates.append(match.datetime)
 
         lastSurface = match.surface
         if match.surface is None:
             unknownSurfaces.add(match.court)
 
+    matchPlot = getMatchPlot(p1, p2, dates)
+
     if len(unknownSurfaces) > 0:
         return f"Unknown surface for courts {", ".join(unknownSurfaces)}", []
-
     
     output = []
     output.append(f"{p1.name} vs {p2.name}")
@@ -320,13 +371,17 @@ def processStats(numMatches=1):
                 output.append(f"BO{s} {surface.capitalize()} H2H: {h1}-{h2} ({diff(h1, h2)})")
 
     output.append("")
-    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {streak} {"win 👑" if streak == 1 else "wins 👑"}")
+    output.append(f"{p1.name[0]}'s Longest Streak: {p1.longestStreak} {makePlural("win", p1.longestStreak)}{" 🚀" if playerStreak == 1 and biggestStreak else ""}")
+    output.append(f"{p2.name[0]}'s Longest Streak: {p2.longestStreak} {makePlural("win", p1.longestStreak)}{" 🚀" if playerStreak == 2 and biggestStreak else ""}")
+
+    output.append("")
+    output.append(f"{p1.name[0] if playerStreak == 1 else p2.name[0]}'s Streak: {streak} {makePlural("win", streak)} 👑")
     
-    return "\n".join(output), lastMatchStats
+    return "\n".join(output), lastMatchStats, matchPlot
 
 load_dotenv() # TODO: Maybe avoid calling multiple times
 loadSurfaces()
 
 if __name__ == "__main__":
-    stats, lastMatchStats = processStats()
+    stats, lastMatchStats, matchPlot = processStats()
     print(stats)

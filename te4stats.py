@@ -223,19 +223,25 @@ def getLastMatchStats(soup, numMatches):
 
 
 def getMatchPlot(p1, p2, dates):
+    plotMatchDiff = True
     fig = plt.figure(figsize=(15, 7))
     ax = fig.add_subplot(1, 1, 1)
     ax.set_title(f"{p1.name} vs {p2.name}")
     ax.set_xlabel("Date")
-    ax.set_ylabel("Number of Wins")
     ax.yaxis.tick_right()
     ax.yaxis.set_label_position("right")
-    ax.step(dates, p1.numWins, label=str(p1.name))
-    ax.step(dates, p2.numWins, label=str(p2.name))
-    ax.minorticks_on()
-    ax.grid(which="major", axis='y', linestyle='-', linewidth="0.5", color="red")
-    ax.grid(which="minor", axis='y', linestyle=':', linewidth="0.5", color="black")
-    ax.legend()
+    if plotMatchDiff:
+        ax.set_ylabel("Win Difference")
+        ax.step(dates, [a - b for a, b in zip(p1.numWins, p2.numWins)])
+        ax.grid(which="major", axis='y', linestyle=':', linewidth="0.5", color="black")
+    else:
+        ax.set_ylabel("Number of Wins")
+        ax.step(dates, p1.numWins, label=str(p1.name))
+        ax.step(dates, p2.numWins, label=str(p2.name))
+        ax.minorticks_on()
+        ax.grid(which="major", axis='y', linestyle='-', linewidth="0.5", color="red")
+        ax.grid(which="minor", axis='y', linestyle=':', linewidth="0.5", color="black")
+        ax.legend()
     fig.canvas.draw()
     rgbaImage = np.array(fig.canvas.buffer_rgba())
     image = cv2.cvtColor(rgbaImage, cv2.COLOR_RGBA2BGR)

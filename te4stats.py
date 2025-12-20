@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
 TRACKBO1 = False
+SHOWALLONLINE = False
 
 
 surfaces = {}
@@ -92,7 +93,7 @@ class H2HPlayer:
 
 
 class Match:
-    def __init__(self, winner, loser, score, court, time, fakeTime, datetimeString):
+    def __init__(self, winner, loser, score, court, time, fakeTime, datetimeString, online):
         self.winner = winner
         self.loser = loser
         self.score = score
@@ -103,6 +104,7 @@ class Match:
         self.fakeTime = fakeTime
         self.datetimeString = datetimeString
         self.datetime = datetime.strptime(self.datetimeString, "%Y-%m-%d %H:%M")
+        self.online = online
 
         
     def __str__(self):
@@ -154,6 +156,7 @@ def findDivider(text, s, start):
 
 
 def parseTitle(text):
+    online = False
     d1, d1End = findDivider(text, " def. ", 0)
     winner = text[:d1]
     d2, d2End = findDivider(text, " : ", d1End)
@@ -171,10 +174,11 @@ def parseTitle(text):
     datetimeString = text[d6End:d7]
     
     if text.endswith("[Online]"):
+        online = True
         winner = winner[:winner.index(" (ELO: ")]
         loser = loser[:loser.index(" (ELO: ")]
 
-    return winner, loser, score, court, time, fakeTime, datetimeString
+    return winner, loser, score, court, time, fakeTime, datetimeString, online
 
 
 # TODO
@@ -184,7 +188,7 @@ def parseStats(stats, winner, loser):
 
 def parseMatch(htmlMatch):
     text = htmlMatch.text
-    winner, loser, score, court, time, fakeTime, datetimeString = parseTitle(text)
+    winner, loser, score, court, time, fakeTime, datetimeString, online = parseTitle(text)
 
     winner = Player(winner)
     loser = Player(loser)
@@ -193,7 +197,7 @@ def parseMatch(htmlMatch):
     assert stats.name == "table"
     parseStats(stats, winner, loser)
     
-    match = Match(winner, loser, score, court, time, fakeTime, datetimeString)
+    match = Match(winner, loser, score, court, time, fakeTime, datetimeString, online)
     return match
 
 
@@ -287,6 +291,25 @@ def updateStreakVariables(playerNumber, p, playerStreak, streak, biggestStreak, 
     return playerStreak, streak, biggestStreak
 
 
+def getPlayerNames(playerNum):
+    which = "PLAYER_ONE" if playerNum == 1 else "PLAYER_TWO"
+    envVar = os.getenv(which)
+    if envVar is None:
+        return None
+    return [p.strip() for p in envVar.split(",")]
+
+
+def getAllSameNames(name):
+    envVar = os.getenv("SAME_NAME")
+    if envVar is None:
+        return [name]
+    for group in envVar.split(";"):
+        names = [p.strip() for p in group.split(",")]
+        if name in names:
+            return names
+    return [name]
+
+
 def processStats(numMatches=1):
     matchLogDir = os.getenv("MATCH_LOG_DIR")
     # sorting should read match logs in order since numbers are all 3 digits/zero padded
@@ -330,8 +353,18 @@ def processStats(numMatches=1):
     # TODO: Account for needing multiple soup files to get last numMatches matches
     lastMatchStats = getLastMatchStats(soup, numMatches)
     
-    p1 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_ONE").split(",")])
-    p2 = H2HPlayer([p.strip() for p in os.getenv("PLAYER_TWO").split(",")])
+    p1 = H2HPlayer(getPlayerNames(1))
+    p2Names = getPlayerNames(2)
+    if SHOWALLONLINE:
+        p2Names = ["everyone online"]
+    elif p2Names is None:
+        lastMatch = matches[-1]
+        if lastMatch.winner.name in p1.name:
+            p2Names = getAllSameNames(lastMatch.loser.name)
+        else:
+            assert lastMatch.loser.name in p1.name
+            p2Names = getAllSameNames(lastMatch.winner.name)
+    p2 = H2HPlayer(p2Names)
     
     playerStreak = None
     streak = 0
@@ -345,11 +378,16 @@ def processStats(numMatches=1):
     unknownSurfaces = set()
     dates = []
     for match in matches:
-        good = match.winner.name in p1.name and match.loser.name in p2.name
-        if not good:
-            good = match.winner.name in p2.name and match.loser.name in p1.name
-        if not good:
-            continue
+        if SHOWALLONLINE:
+            good = match.online and (match.winner.name in p1.name or match.loser.name in p1.name)
+            if not good:
+                continue
+        else:
+            good = match.winner.name in p1.name and match.loser.name in p2.name
+            if not good:
+                good = match.winner.name in p2.name and match.loser.name in p1.name
+            if not good:
+                continue
         # don't include retirements
         if match.numSets == -1:
             continue
@@ -382,8 +420,9 @@ def processStats(numMatches=1):
 
     matchPlot = getMatchPlot(p1, p2, dates)
 
-    if len(unknownSurfaces) > 0:
-        return f"Unknown surface for courts {", ".join(unknownSurfaces)}", []
+    # ok if not perfect stats for showallonline
+    if len(unknownSurfaces) > 0 and not SHOWALLONLINE:
+        return f"Unknown surface for courts {", ".join(unknownSurfaces)}", [], None
     
     output = []
     output.append(f"{p1.name} vs {p2.name}")

@@ -236,7 +236,7 @@ def getMatchPlot(p1, p2, dates):
     ax.yaxis.set_label_position("right")
     if plotMatchDiff:
         ax.set_ylabel("Win Difference")
-        ax.step(dates, [a - b for a, b in zip(p1.numWins, p2.numWins)])
+        ax.step(dates, [a - b for a, b in zip(p1.numWins, p2.numWins)], where='post')
         ax.grid(which="major", axis='y', linestyle=':', linewidth="0.5", color="black")
     else:
         ax.set_ylabel("Number of Wins")

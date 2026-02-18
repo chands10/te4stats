@@ -226,7 +226,18 @@ def getLastMatchStats(soup, numMatches):
     return images
 
 
-def getMatchPlot(p1, p2, dates):
+# TODO: Filter grand slams by putting grand slam name in fiveSetters variable rather than True/False. Don't parse by date to find out grand slam
+def organizeFiveSetters(dates, diffs, fiveSetters):
+    fiveSetterPoints = [(date, diffs[i - 1], diff) for i, (date, diff, f) in enumerate(zip(dates, diffs, fiveSetters)) if f]
+    getPoints = lambda months, color: ([(date, prevDiff, diff) for date, prevDiff, diff in fiveSetterPoints if date.month in months], color)
+    australia = getPoints([1, 2], "cyan")
+    france = getPoints([6], "red")
+    england = getPoints([7], "green")
+    usa = getPoints([9], "blue")
+    return [australia, france, england, usa]
+
+
+def getMatchPlot(p1, p2, dates, fiveSetters):
     plotMatchDiff = True
     fig = plt.figure(figsize=(15, 7))
     ax = fig.add_subplot(1, 1, 1)
@@ -235,9 +246,20 @@ def getMatchPlot(p1, p2, dates):
     ax.yaxis.tick_right()
     ax.yaxis.set_label_position("right")
     if plotMatchDiff:
+        diffs = [0] + [a - b for a, b in zip(p1.numWins, p2.numWins)]
+        # TODO: Account for no dates[0]
+        dates2 = [dates[0]] + dates
+        fiveSetters2 = [False] + fiveSetters
         ax.set_ylabel("Win Difference")
-        ax.step(dates, [a - b for a, b in zip(p1.numWins, p2.numWins)], where='post')
+        ax.step(dates2, diffs, where='post', zorder=0)
         ax.grid(which="major", axis='y', linestyle=':', linewidth="0.5", color="black")
+
+        for slam, c in organizeFiveSetters(dates2, diffs, fiveSetters2):
+            for s in slam:
+                ax.plot([s[0], s[0]], [s[1], s[2]], color=c, zorder=1)
+                ax.scatter(s[0], s[2], color=c, zorder=1)
+            # ax.scatter([s[0] for s in slam], [s[1] for s in slam], color=c, zorder=1)
+
     else:
         ax.set_ylabel("Number of Wins")
         ax.step(dates, p1.numWins, label=str(p1.name))
@@ -377,6 +399,7 @@ def processStats(numMatches=1):
     lastSurface = None
     unknownSurfaces = set()
     dates = []
+    fiveSetters = []
     for match in matches:
         if SHOWALLONLINE:
             good = match.online and (match.winner.name in p1.name or match.loser.name in p1.name)
@@ -407,6 +430,7 @@ def processStats(numMatches=1):
         p1.numWins.append(len(p1.wins))
         p2.numWins.append(len(p2.wins))
         dates.append(match.datetime)
+        fiveSetters.append(match.numSets == 5)
 
         for s in setWinners:
             p = p1 if s == 1 else p2
@@ -418,7 +442,7 @@ def processStats(numMatches=1):
         if match.surface is None:
             unknownSurfaces.add(match.court)
 
-    matchPlot = getMatchPlot(p1, p2, dates)
+    matchPlot = getMatchPlot(p1, p2, dates, fiveSetters)
 
     # ok if not perfect stats for showallonline
     if len(unknownSurfaces) > 0 and not SHOWALLONLINE:

@@ -341,7 +341,7 @@ def processStats(numMatches=1):
     allUnknownSurfaces = set()
     for matchLog in matchLogs:
         assert not done
-        with open(os.path.join(matchLogDir, matchLog)) as fp:
+        with open(os.path.join(matchLogDir, matchLog), encoding="utf-8") as fp:
             soup = BeautifulSoup(fp, 'html.parser')
         
         first = True

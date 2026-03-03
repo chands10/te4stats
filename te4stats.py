@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
-TRACKBO1 = False
+TRACKBO1 = True
 SHOWALLONLINE = False
 
 
@@ -333,6 +333,8 @@ def getAllSameNames(name):
 
 
 def processStats(numMatches=1):
+    global TRACKBO1
+
     matchLogDir = os.getenv("MATCH_LOG_DIR")
     # sorting should read match logs in order since numbers are all 3 digits/zero padded
     matchLogs = sorted(f for f in os.listdir(matchLogDir) if f.startswith("MatchLog - TrainingClub"))
@@ -386,6 +388,20 @@ def processStats(numMatches=1):
         else:
             assert lastMatch.loser.name in p1.name
             p2Names = getAllSameNames(lastMatch.winner.name)
+
+    trackBo1Var = os.getenv("TRACK_BO1").split(",")
+    trackBo1Dict = dict()
+    for p in trackBo1Var:
+        name, track = p.split(":")
+        name = name.strip()
+        track = track.strip()
+        trackBo1Dict[name] = (track == "True")
+
+    for name in p2Names:
+        if name in trackBo1Dict:
+            TRACKBO1 = trackBo1Dict[name]
+            break
+
     p2 = H2HPlayer(p2Names)
     
     playerStreak = None

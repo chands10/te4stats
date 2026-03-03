@@ -11,3 +11,4 @@ Need to set some environment variables (can use .env file):
 - `PLAYER_ONE`: Comma separated list of all names for player one
 - `PLAYER_TWO`: Comma separated list of all names for player two (if empty then use the name from last match in match log)
 - `SAME_NAMES`: Semicolon separated list of comma separated lists of all names that are the same for a player (only used if `PLAYER_TWO` is empty)
+- `TRACK_BO1`: Comma separated list of `:` delimited boolean values of whether to track best of 1 matches in head to head (ex: `Name: False`)

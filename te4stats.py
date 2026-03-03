@@ -322,7 +322,7 @@ def getPlayerNames(playerNum):
 
 
 def getAllSameNames(name):
-    envVar = os.getenv("SAME_NAME")
+    envVar = os.getenv("SAME_NAMES")
     if envVar is None:
         return [name]
     for group in envVar.split(";"):

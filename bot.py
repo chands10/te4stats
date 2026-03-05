@@ -37,6 +37,8 @@ async def getstats(interaction: discord.Interaction, arg: int=1):
         files.append(convertImage(img, f'lastMatchStats{i}.jpg'))
     files.append(convertImage(matchPlot, "matchPlot.jpg"))
 
+    stats = stats.replace("_", "\\_")
+
     await interaction.followup.send(content=stats, files=files)
 
 
